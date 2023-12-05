@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15...3.20)
-project("q1"
+project("q2"
         LANGUAGES CXX
         VERSION 0.0.1)
 

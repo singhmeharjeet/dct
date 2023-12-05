@@ -9,10 +9,11 @@
 
 #include "myfont.cpp"
 #include "style.h"
-#include "ArithmeticCode.h"
+#include "DCT.h"
 
 #define WIDTH 1200
 #define HEIGHT 800
+
 
 // Main code
 int main(int, char **) {
@@ -26,7 +27,7 @@ int main(int, char **) {
 	SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
 
 	// Create window with SDL_Renderer graphics context
-	auto window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+	auto window_flags = (SDL_WindowFlags) (SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE);
 	SDL_Window *window = SDL_CreateWindow("", WIDTH, HEIGHT, window_flags);
 	if (window == nullptr) {
 		printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
@@ -40,6 +41,7 @@ int main(int, char **) {
 
 	SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 	SDL_ShowWindow(window);
+	SDL_SetWindowMinimumSize(window, 600, 600);
 
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
@@ -69,8 +71,12 @@ int main(int, char **) {
 	bool done = false;
 	bool upload_success = true;
 	std::string filepath;
-	ArithmeticCode *code;
+	DCT dct;
 	while (!done) {
+		// Start the Dear ImGui frame
+		ImGui_ImplSDLRenderer3_NewFrame();
+		ImGui_ImplSDL3_NewFrame();
+
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
 			ImGui_ImplSDL3_ProcessEvent(&event);
@@ -78,15 +84,16 @@ int main(int, char **) {
 				done = true;
 			if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
 				done = true;
+
+			break;
 		}
 
-		// Start the Dear ImGui frame
-		ImGui_ImplSDLRenderer3_NewFrame();
-		ImGui_ImplSDL3_NewFrame();
 		ImGui::NewFrame();
 
+		int x, y;
+		SDL_GetWindowSize(window, &x, &y);
 		ImGui::SetNextWindowPos(ImVec2(0, 0));
-		ImGui::SetNextWindowSize(ImVec2(WIDTH, HEIGHT));
+		ImGui::SetNextWindowSize(ImVec2(x, y));
 		ImGui::Begin("Find Interval", &show_upload_button,
 					 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
 					 ImGuiWindowFlags_NoResize);
@@ -94,7 +101,7 @@ int main(int, char **) {
 
 		if (filepath.empty()) {
 
-			auto text = "Welcome to the Arithmetic Interval Finder";
+			auto text = "Welcome to Discrete Cosine Transformer";
 			ImGui::PushFont(fontLg);
 			auto textSize = ImGui::CalcTextSize(text);
 			AlignForWidth(textSize.x, 0.5);
@@ -124,12 +131,14 @@ int main(int, char **) {
 					upload_success = false;
 				}
 			}
+
 			if (!upload_success) {
 				text = "File Upload Failed... Try again";
 				textSize = ImGui::CalcTextSize(text);
 				AlignForWidth(textSize.x);
 				ImGui::Text("%s", text);
 			}
+
 
 			text = "Close";
 			textSize = ImGui::CalcTextSize(text);
@@ -141,71 +150,57 @@ int main(int, char **) {
 				break;
 			}
 
+
 		} else {
+
 			std::ifstream file(filepath);
+
+			// Check for file open errors, and tracks the upload state in a boolean
 			if (!file.is_open()) {
 				upload_success = false;
 				continue;
 			}
 			upload_success = true;
 
-			std::string line;
-			std::getline(file, line);
-			auto num_lines = std::strtoul(line.c_str(), nullptr, 10);
 
-
-			auto text = "00 Inputs";
-			auto textSize = ImGui::CalcTextSize(text);
-			ImGui::PushFont(fontLg);
-			AlignForWidth(textSize.x, 0.05f);
-			AlignForHeight(textSize.y, 0.05f);
-
-			ImGui::Text("%lu Inputs", num_lines);
-			ImGui::PopFont();
-			ImGui::Dummy(ImVec2(0, 10));
-
-			code = new ArithmeticCode[num_lines];
-
-			for (auto i = 0; i < num_lines; i++) {
+			// Parse the input only once, unless the user wants to upload a new file
+			if (!dct.is_parsed) {
+				std::string line;
 				std::getline(file, line);
-				code[i].input = line;
-				code[i].a = 0;
-				code[i].b = 1;
-				encode(code[i]);
+				auto num_lines = std::strtoul(line.c_str(), nullptr, 10);
 
+				dct.size = num_lines;
+				dct.input.resize(num_lines);
+				char delim = ' ';
+				for (int i = 0; i < dct.size; i++) {
+					dct.input[i].resize(dct.size);
+					std::getline(file, line);
 
-				std::stringstream stream;
-				stream << std::fixed << std::setprecision(15)
-					   << code[i].a << std::endl
-					   << code[i].b << std::endl;
-
-				std::string a;
-				std::getline(stream, a);
-				std::string b;
-				std::getline(stream, b);
-
-				std::string res;
-				res.append("Input: ");
-				res.append(code[i].input);
-				res.append("\nInterval: [");
-				res.append(a);
-				res.append(", ");
-				res.append(b);
-				res.append(")");
-
-				AlignForWidth(0, 0.1f);
-				ImGui::Text("%s", res.c_str());
-
-				ImGui::Dummy(ImVec2(0, 10));
+					for (int j = 0; j < dct.size; j++) {
+						std::string token = line.substr(0, line.find(delim));
+						dct.input[i][j] = std::strtoul(token.c_str(), nullptr, 10);
+						line.erase(0, line.find(delim) + 1);
+					}
+				}
+				dct.set_row_major();
+				dct.set_col_major();
+				dct.is_parsed = true;
 			}
 
-			text = "Back";
-			textSize = ImGui::CalcTextSize(text);
+			// Display the Input Matrix
+			print_matrix(window, "Input Matrix", dct.input);
+			print_matrix(window, "Row Major", dct.row_major);
+			print_matrix(window, "Col Major", dct.col_major);
+
+
+			auto text = std::string("Back");
+			auto textSize = ImGui::CalcTextSize(text.c_str());
+			ImGui::Dummy(ImVec2(0, 50));
 			AlignForHeight(textSize.y);
 			AlignForWidth(textSize.x, 0.5f);
 			if (ImGui::Button("Back")) {
-				delete[] code;
 				filepath = "";
+				dct.is_parsed = false;
 			}
 			ImGui::Dummy(ImVec2(0, 50));
 		}
@@ -216,8 +211,8 @@ int main(int, char **) {
 		// Rendering
 		ImGui::Render();
 
-		SDL_SetRenderDrawColor(renderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255),
-							   (Uint8)(clear_color.z * 255), (Uint8)(clear_color.w * 255));
+		SDL_SetRenderDrawColor(renderer, (Uint8) (clear_color.x * 255), (Uint8) (clear_color.y * 255),
+							   (Uint8) (clear_color.z * 255), (Uint8) (clear_color.w * 255));
 		SDL_RenderClear(renderer);
 		ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData());
 		SDL_RenderPresent(renderer);
@@ -235,3 +230,4 @@ int main(int, char **) {
 
 	return 0;
 }
+

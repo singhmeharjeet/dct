@@ -10,17 +10,14 @@ target_include_directories(${PROJECT_NAME}
         "${CMAKE_HOME_DIRECTORY}/vendor/imgui/backends"
         "${CMAKE_HOME_DIRECTORY}/vendor/tinyfiledialogs-cmake/include"
         )
-target_sources(${PROJECT_NAME}
+target_sources(
+        ${PROJECT_NAME}
         PRIVATE
         main.cpp
         myfont.cpp
         style.h
-        ArithmeticCode.cpp
-        )
-target_link_libraries(${PROJECT_NAME}
-        PRIVATE
-        vendor
-        )
+        DCT.h)
 
-add_custom_target(run ALL
-        COMMAND "./${PROJECT_NAME}")
+target_link_libraries(${PROJECT_NAME} PRIVATE vendor)
+
+add_custom_target(run ALL COMMAND "./${PROJECT_NAME}")
