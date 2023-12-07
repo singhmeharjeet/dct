@@ -60,12 +60,8 @@ void print_matrix(SDL_Window *window, const std::string &name, const std::vector
 			ImGui::TableNextRow();
 			for (size_t column = offset; column - offset < matrix.size(); column++) {
 				ImGui::TableSetColumnIndex(column);
-				if (typeid(matrix[row][column - offset]) == typeid(int))
-					ImGui::Text("%   d", matrix[row][column - offset]);
-				else {
-					ImGui::Text("%.2f", matrix[row][column - offset]);
-				}
-			}
+                                    ImGui::Text("%   d",(int) matrix[row][column - offset]);
+                        }
 		}
 		ImGui::EndTable();
 	}
